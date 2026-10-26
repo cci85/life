@@ -1,0 +1,301 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0;font:14px system-ui,sans-serif}img{max-width:100%}[hidden]{display:none!important}</style>
+<title>久坐重啟計時器</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;700&family=Noto+Sans+TC:wght@400;500;700&display=swap">
+<style>
+/* Layout: one narrow column; home = version picker + move list, player = big ring timer with step-colored phase */
+:root{
+  --bg:#eef2f1; --surface:#ffffff; --ink:#1d2a2b; --muted:#5d6e6f; --line:#d3dcdb;
+  --accent:#1f7a6f; --accent-ink:#ffffff;
+  --s1:#3b7fb8; --s2:#c07a2c; --s3:#2f8a63; --s4:#9a4f8f;
+  --rest:#7a8b8c;
+  --f-num:"Barlow Condensed","Arial Narrow",system-ui,sans-serif;
+  --f-body:"Noto Sans TC","PingFang TC","Microsoft JhengHei",system-ui,sans-serif;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#121a1b; --surface:#1b2526; --ink:#e4ecea; --muted:#93a4a3; --line:#2c3a3b;
+  --accent:#4fb3a4; --accent-ink:#0d1516;
+  --s1:#6aa8dc; --s2:#e0a35c; --s3:#5fbf92; --s4:#c987bd; --rest:#8a9b9c; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#121a1b; --surface:#1b2526; --ink:#e4ecea; --muted:#93a4a3; --line:#2c3a3b;
+  --accent:#4fb3a4; --accent-ink:#0d1516;
+  --s1:#6aa8dc; --s2:#e0a35c; --s3:#5fbf92; --s4:#c987bd; --rest:#8a9b9c; color-scheme:dark}
+html,body{height:100%}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.6}
+.wrap{max-width:560px;margin:0 auto;padding-block:20px 40px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));display:flex;flex-direction:column;gap:18px}
+h1{font-size:1.6rem;margin:0;text-wrap:balance;letter-spacing:.02em}
+.lede{margin:4px 0 0;color:var(--muted)}
+.seg{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.seg button{font:inherit;border:1.5px solid var(--line);background:var(--surface);color:var(--ink);border-radius:12px;padding:12px;text-align:left;cursor:pointer;display:flex;flex-direction:column;gap:2px}
+.seg button[aria-pressed="true"]{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}
+.seg b{font-size:1rem}
+.seg span{color:var(--muted);font-size:.85rem}
+.seg .mins{font-family:var(--f-num);font-size:1.5rem;font-weight:700;color:var(--accent);font-variant-numeric:tabular-nums;line-height:1.1}
+.list{display:flex;flex-direction:column;gap:14px}
+.grp h2{font-size:.8rem;letter-spacing:.12em;margin:0 0 6px;display:flex;align-items:center;gap:8px;color:var(--muted)}
+.grp h2 i{width:10px;height:10px;border-radius:3px;display:inline-block}
+.grp ol{list-style:none;margin:0;padding:0;border-top:1px solid var(--line)}
+.grp li{display:flex;justify-content:space-between;gap:12px;padding:8px 0;border-bottom:1px solid var(--line)}
+.grp li .n{font-weight:500}
+.grp li .d{font-family:var(--f-num);font-size:1.05rem;color:var(--muted);font-variant-numeric:tabular-nums;white-space:nowrap}
+.grp li small{display:block;color:var(--muted);font-size:.8rem}
+.btn{font:inherit;font-weight:700;border:0;border-radius:14px;padding:14px 18px;cursor:pointer;background:var(--accent);color:var(--accent-ink);font-size:1.05rem}
+.btn.ghost{background:transparent;color:var(--ink);border:1.5px solid var(--line);font-weight:500}
+.btn:focus-visible,.seg button:focus-visible,.ctl button:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+.opts{display:flex;flex-wrap:wrap;gap:14px;color:var(--muted);font-size:.9rem}
+.opts label{display:flex;align-items:center;gap:6px;cursor:pointer}
+.note{font-size:.85rem;color:var(--muted);border-left:3px solid var(--line);padding-left:10px;margin:0}
+.log{font-size:.9rem;color:var(--muted)}
+.log b{color:var(--ink);font-family:var(--f-num);font-size:1.15rem}
+
+/* player */
+#player{--ph:var(--accent)}
+.phase{display:flex;justify-content:space-between;align-items:center;font-size:.85rem;color:var(--muted)}
+.chip{background:var(--ph);color:var(--bg);font-weight:700;border-radius:999px;padding:3px 12px;letter-spacing:.06em}
+.ringbox{position:relative;width:min(58vw,240px);aspect-ratio:1;max-width:100%;margin:4px auto 0}
+.ringbox svg{width:100%;height:100%;transform:rotate(-90deg)}
+.ringbox .trk{stroke:var(--line)}
+.ringbox .arc{stroke:var(--ph);transition:stroke-dashoffset .25s linear}
+.ringmid{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px}
+.time{font-family:var(--f-num);font-weight:700;font-size:clamp(4rem,22vw,6.2rem);line-height:1;font-variant-numeric:tabular-nums}
+.side{font-weight:700;color:var(--ph);min-height:1.5em}
+.mv{text-align:center}
+.mv h2{margin:0;font-size:1.7rem;text-wrap:balance}
+.mv ul{margin:8px auto 0;padding:0;list-style:none;display:flex;flex-direction:column;gap:2px;max-width:30em;color:var(--muted)}
+.mv ul li::before{content:"・"}
+.next{text-align:center;color:var(--muted);font-size:.9rem;min-height:1.6em}
+.next b{color:var(--ink)}
+.ctl{display:grid;grid-template-columns:1fr 1.4fr 1fr;gap:10px}
+.ctl button{font:inherit;font-weight:700;border-radius:14px;padding:14px 0;cursor:pointer;border:1.5px solid var(--line);background:var(--surface);color:var(--ink)}
+.ctl .main{background:var(--ph);border-color:var(--ph);color:var(--bg)}
+.bar{height:6px;background:var(--line);border-radius:3px;overflow:hidden}
+.bar i{display:block;height:100%;background:var(--ph);width:0;transition:width .3s}
+.meta{display:flex;justify-content:space-between;font-size:.8rem;color:var(--muted);font-variant-numeric:tabular-nums}
+.toplink{align-self:flex-start;font:inherit;background:none;border:0;color:var(--muted);cursor:pointer;padding:4px 0}
+#done{text-align:center;align-items:center}
+#done .big{font-family:var(--f-num);font-size:4rem;font-weight:700;color:var(--accent);line-height:1}
+.fig{display:block;width:100%;height:auto}
+.fig .lim{fill:none;stroke-width:4.5;stroke-linecap:round;stroke-linejoin:round}
+.fig .near{stroke:var(--ink)} .fig .far{stroke:var(--muted);opacity:.75} .fig .hi{stroke:var(--ph)}
+.fig .hd{fill:var(--surface);stroke:var(--ink);stroke-width:3.5}
+.fig .gr{stroke:var(--line);stroke-width:2}
+.fig .wall{fill:var(--line);opacity:.5}
+.fig .mo{fill:none;stroke:var(--ph);stroke-width:2.2;stroke-dasharray:4 3}
+.fig .band{stroke:var(--ph);stroke-width:3.5;stroke-linecap:round;opacity:.85}
+.fig .tag{fill:var(--muted);font-size:9px;font-family:var(--f-body)}
+.figcard{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:6px 10px;max-width:340px;width:100%;margin:10px auto 0}
+.vid{display:inline-flex;align-items:center;gap:6px;margin-top:8px;font-weight:700;color:var(--ph);text-decoration:none;border:1.5px solid var(--ph);border-radius:999px;padding:5px 14px;font-size:.9rem}
+.vid:focus-visible{outline:3px solid var(--ph);outline-offset:2px}
+.grp li{align-items:center}
+.grp li .thumb{width:76px;flex:none;--ph:var(--sc)}
+.grp li .body{flex:1;min-width:0}
+.grp li a{font-size:.8rem;color:var(--accent);text-decoration:none;font-weight:500}
+@media (prefers-reduced-motion:reduce){.ringbox .arc,.bar i{transition:none}}
+</style>
+</head>
+<body>
+
+<div class="wrap" id="home">
+  <header>
+    <h1>久坐重啟：四步驟練習</h1>
+    <p class="lede">胸椎 → 髖部 → 核心 → 臀中肌，先恢復活動度與穩定，再談臀腿訓練。</p>
+  </header>
+  <div class="seg" role="group" aria-label="版本">
+    <button id="v-short" data-v="short"><b>平日短版</b><span class="mins" id="m-short"></span><span>8 個關鍵動作，久坐空檔做</span></button>
+    <button id="v-full" data-v="full"><b>週末完整版</b><span class="mins" id="m-full"></span><span>16 個動作完整一輪</span></button>
+  </div>
+  <div class="opts">
+    <label><input type="checkbox" id="o-sound" checked> 提示音</label>
+    <label><input type="checkbox" id="o-voice" checked> 語音播報</label>
+    <label>休息 <select id="o-rest"><option value="10">10 秒</option><option value="15" selected>15 秒</option><option value="20">20 秒</option></select></label>
+  </div>
+  <button class="btn" id="start">開始練習</button>
+  <div class="list" id="list"></div>
+  <p class="log" id="log"></p>
+  <p class="note">動作全程以「有伸展感、不痛」為準；若出現刺痛、麻感或膝腰疼痛加劇，請停止並諮詢物理治療師。雙側動作會在中途提示換邊。</p>
+</div>
+
+<div class="wrap" id="player" hidden>
+  <button class="toplink" id="quit">← 結束並返回</button>
+  <div class="phase"><span class="chip" id="chip"></span><span id="count"></span></div>
+  <div class="ringbox">
+    <svg viewBox="0 0 120 120" aria-hidden="true"><circle class="trk" cx="60" cy="60" r="54" fill="none" stroke-width="7"/><circle class="arc" id="arc" cx="60" cy="60" r="54" fill="none" stroke-width="7" stroke-linecap="round"/></svg>
+    <div class="ringmid"><div class="time" id="time">0</div><div class="side" id="side"></div></div>
+  </div>
+  <div class="mv"><h2 id="mvname"></h2><div class="figcard" id="figbox"></div><a class="vid" id="vid" target="_blank" rel="noopener">▶ 看示範影片</a><ul id="cues"></ul></div>
+  <p class="next" id="next"></p>
+  <div class="ctl"><button id="prev">上一個</button><button class="main" id="pause">暫停</button><button id="skip">下一個</button></div>
+  <div class="bar"><i id="prog"></i></div>
+  <div class="meta"><span id="elapsed"></span><span id="remain"></span></div>
+</div>
+
+<div class="wrap" id="done" hidden>
+  <div class="big">完成</div>
+  <p id="donetxt"></p>
+  <p class="log" id="log2"></p>
+  <button class="btn" id="again">回到首頁</button>
+</div>
+
+<script>
+const STEPS={1:{name:"Step 1 打開胸椎",c:"--s1"},2:{name:"Step 2 鬆開髖部",c:"--s2"},3:{name:"Step 3 穩住核心",c:"--s3"},4:{name:"Step 4 喚醒臀中肌",c:"--s4"}};
+const M={
+ catcow:{s:1,n:"貓牛式",cue:["四足跪姿，手在肩下、膝在髖下","吸氣塌腰抬頭，吐氣拱背收下巴","一節一節慢慢動，約 8–10 次"]},
+ shoulder:{s:1,n:"肩繞環",cue:["雙臂側平舉，肩膀畫圈","前半段向前繞，換邊後改向後繞","肩膀放鬆不聳肩"],sides:["向前繞","向後繞"]},
+ trot:{s:1,n:"胸椎旋轉",cue:["側臥，膝蓋屈曲疊放","上方手臂向後打開，眼睛跟著手","轉動來自胸椎，骨盆不跟著翻"],sides:true},
+ angel:{s:1,n:"靠牆天使",cue:["背、後腦貼牆，手肘手背靠牆","雙臂沿牆慢慢上滑再下滑","肋骨下收，腰不離牆太多"]},
+ hipflex:{s:2,n:"髖屈肌拉伸",cue:["單膝跪地（跪膝下可墊瑜伽墊）","尾骨下沉、輕夾臀，身體微前移","感覺後腿髖前側伸展，軀幹不歪斜"],sides:true},
+ lunge:{s:2,n:"弓步拉伸",cue:["大弓步，前膝對準腳尖","後腿伸直蹬地，脊柱向上延展","可雙手扶前膝保持平衡"],sides:true},
+ n9090:{s:2,n:"90/90 轉髖",cue:["坐姿，雙膝各彎 90 度倒向同側","像轉鑰匙一樣左右換邊","雙手撐後方，背挺直"]},
+ dynhip:{s:2,n:"動態開髖",cue:["單腳站立，可手扶牆或椅背","抬膝向外畫大圈再放下","動作慢、控制好骨盆"],sides:true},
+ deadbug:{s:3,n:"死蟲",cue:["仰躺，腰背輕貼地面","對側手腳慢慢伸遠再收回","吐氣時伸出，腰不離地"]},
+ birddog:{s:3,n:"鳥狗",cue:["四足跪姿，對側手腳同時伸直","伸到與軀幹一直線，停 2 秒","軀幹不晃、骨盆不旋轉"],sides:["右手左腳","左手右腳"]},
+ plank:{s:3,n:"平板支撐",cue:["前臂撐地，全身一直線","不塌腰、不翹臀","正常呼吸，撐不住可改跪姿"]},
+ bridge:{s:3,n:"臀橋保持",cue:["仰躺屈膝，腳跟靠近臀部","夾臀把骨盆推高後停住","腰部不過度挺起，臀部出力"]},
+ clam:{s:4,n:"蚌式開合",cue:["側臥屈膝，可把彈力帶套在膝上","腳跟併攏，上膝像蚌殼打開","骨盆不後倒，感覺臀部側後方出力"],sides:true},
+ bandwalk:{s:4,n:"彈力帶側走",cue:["彈力帶套膝上或腳踝，微蹲","橫向小步走，左右來回","全程維持彈力帶張力，膝不內扣"]},
+ sideleg:{s:4,n:"側臥抬腿",cue:["側臥，下方腿微彎","上方腿伸直、膝蓋朝前抬起","腳尖不朝天，精準刺激臀側"],sides:true},
+ single:{s:4,n:"單腿站立",cue:["單腳站穩，另一腳抬起","骨盆保持水平，穩住不晃","太容易可閉眼或站在軟墊上"],sides:true}
+};
+/* stick-figure poses: h head, n neck, p pelvis, a arms [[elbow,hand],…], l legs [[knee,foot],…]; index 0 = near side. hi: limbs to highlight */
+const G=110;
+const FIG={
+ catcow:{h:[146,72],n:[130,80],p:[82,80],a:[[[130,95],[130,110]],[[134,95],[134,110]]],l:[[[82,108],[52,110]],[[86,108],[56,110]]],x:`<path class="mo" d="M88 64 Q106 46 124 64" marker-start="url(#ah)" marker-end="url(#ah)"/><text class="tag" x="94" y="42">拱背／塌腰</text>`},
+ shoulder:{h:[100,24],n:[100,36],p:[100,68],a:[[[79,37],[56,38]],[[121,37],[144,38]]],l:[[[94,89],[92,110]],[[106,89],[108,110]]],x:`<circle class="mo" cx="52" cy="38" r="9"/><circle class="mo" cx="148" cy="38" r="9"/>`},
+ trot:{top:1,h:[144,70],n:[130,70],p:[80,70],a:[[[130,50],[130,28]],[[130,90],[130,112]]],l:[[[80,44],[54,44]],[[84,47],[58,47]]],hi:["a1"],x:`<path class="mo" d="M140 30 A40 40 0 0 1 140 110" marker-end="url(#ah)"/><text class="tag" x="10" y="112">俯視・側躺</text>`},
+ angel:{h:[100,26],n:[100,38],p:[100,70],a:[[[78,38],[78,16]],[[122,38],[122,16]]],l:[[[94,90],[92,110]],[[106,90],[108,110]]],wall:1,x:`<path class="mo" d="M66 34 L66 8" marker-start="url(#ah)" marker-end="url(#ah)"/><path class="mo" d="M134 34 L134 8" marker-start="url(#ah)" marker-end="url(#ah)"/>`},
+ hipflex:{h:[99,32],n:[97,44],p:[95,80],a:[[[110,62],[124,76]],[[106,64],[120,78]]],l:[[[125,80],[125,110]],[[88,110],[58,110]]],hi:["l1"],x:`<path class="mo" d="M82 64 L82 86" marker-end="url(#ah)"/><text class="tag" x="40" y="60">尾骨下沉</text>`},
+ lunge:{h:[106,28],n:[104,40],p:[100,78],a:[[[118,58],[132,76]],[[114,60],[128,78]]],l:[[[135,80],[140,110]],[[70,92],[40,108]]],hi:["l1"],x:`<path class="mo" d="M88 78 L92 34" marker-end="url(#ah)"/>`},
+ n9090:{h:[94,48],n:[96,60],p:[100,100],a:[[[84,80],[74,104]],[[88,80],[78,104]]],l:[[[128,82],[142,108]],[[124,86],[138,110]]],x:`<path class="mo" d="M114 70 Q132 54 150 72" marker-start="url(#ah)" marker-end="url(#ah)"/><text class="tag" x="128" y="48">左右倒膝</text>`},
+ dynhip:{h:[101,24],n:[100,36],p:[100,72],a:[[[110,54],[122,58]],[[84,52],[67,56]]],l:[[[126,72],[124,96]],[[100,92],[100,110]]],wall:2,hi:["l0"],x:`<ellipse class="mo" cx="124" cy="74" rx="20" ry="12"/>`},
+ deadbug:{h:[48,100],n:[62,102],p:[110,102],a:[[[62,82],[62,60]],[[46,90],[28,84]]],l:[[[110,76],[136,76]],[[136,98],[164,102]]],hi:["a1","l1"],x:`<path class="mo" d="M40 70 Q30 76 26 86" marker-end="url(#ah)"/><path class="mo" d="M146 80 Q158 86 162 96" marker-end="url(#ah)"/>`},
+ birddog:{h:[146,72],n:[130,80],p:[82,80],a:[[[130,95],[130,110]],[[152,78],[176,76]]],l:[[[82,108],[54,110]],[[56,80],[28,80]]],hi:["a1","l1"],x:`<path class="mo" d="M28 72 L178 68"/><text class="tag" x="70" y="62">一直線</text>`},
+ plank:{h:[152,82],n:[140,88],p:[92,92],a:[[[138,110],[158,110]],[[142,110],[162,110]]],l:[[[66,100],[38,108]],[[68,101],[40,109]]],x:`<path class="mo" d="M34 98 L160 74"/><text class="tag" x="74" y="70">全身一直線</text>`},
+ bridge:{h:[48,103],n:[60,104],p:[104,80],a:[[[80,108],[98,108]],[[82,108],[100,108]]],l:[[[130,74],[140,110]],[[134,76],[144,110]]],x:`<path class="mo" d="M104 104 L104 70" marker-end="url(#ah)"/><text class="tag" x="74" y="62">夾臀推高</text>`},
+ clam:{h:[48,92],n:[62,98],p:[106,100],a:[[[84,88],[100,94]],[[46,110],[42,98]]],l:[[[128,78],[112,106]],[[132,106],[110,110]]],hi:["l0"],x:`<path class="band" d="M129 82 L132 102"/><path class="mo" d="M146 100 Q152 84 140 72" marker-end="url(#ah)"/>`},
+ bandwalk:{h:[100,28],n:[100,40],p:[100,74],a:[[[80,56],[92,72]],[[120,56],[108,72]]],l:[[[86,90],[82,110]],[[114,90],[118,110]]],x:`<path class="band" d="M86 92 L114 92"/><path class="mo" d="M130 102 L160 102" marker-end="url(#ah)"/><path class="mo" d="M70 102 L40 102" marker-end="url(#ah)"/>`},
+ sideleg:{h:[40,96],n:[54,100],p:[100,102],a:[[[72,94],[80,108]],[[40,108],[30,98]]],l:[[[126,82],[152,64]],[[128,104],[154,108]]],hi:["l0"],x:`<path class="mo" d="M166 98 Q174 82 164 62" marker-end="url(#ah)"/>`},
+ single:{h:[100,24],n:[100,36],p:[100,70],a:[[[78,40],[57,46]],[[122,40],[143,46]]],l:[[[120,78],[116,98]],[[100,90],[100,110]]],hi:["l0"],x:`<ellipse class="mo" cx="100" cy="111" rx="26" ry="4"/>`}
+};
+let figN=0;
+function figSVG(id){
+  const f=FIG[id],mk="ah"+(++figN),pt=a=>a.join(" ");
+  const limb=(o,k,i)=>{const cls=(f.hi||[]).includes(k+i)?"hi":(i?"far":"near");return`<polyline class="lim ${cls}" points="${pt(o)} ${pt(f[k][i][0])} ${pt(f[k][i][1])}"/>`};
+  let s=`<svg class="fig" viewBox="0 0 200 120" role="img" aria-label="${M[id].n} 示意圖"><defs><marker id="${mk}" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10z" fill="var(--ph)"/></marker></defs>`;
+  if(f.wall===1)s+=`<rect class="wall" x="60" y="2" width="80" height="${G}"/>`;
+  if(f.wall===2)s+=`<rect class="wall" x="54" y="10" width="10" height="${G-10}"/>`;
+  if(!f.top)s+=`<line class="gr" x1="6" y1="${G+1}" x2="194" y2="${G+1}"/>`;
+  s+=limb(f.n,"a",1)+limb(f.p,"l",1);
+  s+=`<line class="lim near" x1="${f.n[0]}" y1="${f.n[1]}" x2="${f.p[0]}" y2="${f.p[1]}"/>`;
+  s+=limb(f.p,"l",0)+limb(f.n,"a",0);
+  s+=`<circle class="hd" cx="${f.h[0]}" cy="${f.h[1]}" r="8"/>`+(f.x||"").replace(/url\(#ah\)/g,`url(#${mk})`)+`</svg>`;
+  return s;
+}
+const EN={catcow:"cat cow stretch",shoulder:"arm circles",trot:"side lying thoracic rotation open book",angel:"wall angels",hipflex:"half kneeling hip flexor stretch",lunge:"low lunge stretch",n9090:"90 90 hip switch",dynhip:"standing hip circles",deadbug:"dead bug exercise",birddog:"bird dog exercise",plank:"forearm plank",bridge:"glute bridge hold",clam:"clamshell exercise",bandwalk:"lateral band walk",sideleg:"side lying leg raise",single:"single leg balance"};
+const vidURL=id=>"https://www.youtube.com/results?search_query="+encodeURIComponent(M[id].n+" "+EN[id]);
+const ROUTINES={
+ short:[["catcow",45],["trot",60],["hipflex",60],["n9090",45],["deadbug",40],["bridge",30],["clam",60],["bandwalk",40]],
+ full:[["catcow",60],["shoulder",40],["trot",60],["angel",45],["hipflex",60],["lunge",60],["n9090",60],["dynhip",60],["deadbug",45],["birddog",60],["plank",30],["bridge",30],["clam",60],["bandwalk",45],["sideleg",60],["single",60]]
+};
+const $=id=>document.getElementById(id);
+const store={get(k,d){try{const v=localStorage.getItem(k);return v==null?d:JSON.parse(v)}catch(e){return d}},set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}};
+let ver=store.get("ver","short");
+const fmt=s=>{s=Math.max(0,Math.round(s));return Math.floor(s/60)+":"+String(s%60).padStart(2,"0")};
+const restSec=()=>+$("o-rest").value;
+function total(v){const r=ROUTINES[v];return r.reduce((a,x)=>a+x[1],0)+(r.length-1)*restSec()+5}
+function renderHome(){
+  ["short","full"].forEach(v=>{$("v-"+v).setAttribute("aria-pressed",v===ver);$("m-"+v).textContent="約 "+Math.round(total(v)/60)+" 分鐘"});
+  const r=ROUTINES[ver],g={};r.forEach(([id,d])=>{(g[M[id].s]=g[M[id].s]||[]).push([id,d])});
+  $("list").innerHTML=Object.keys(g).map(s=>`<section class="grp"><h2><i style="background:var(${STEPS[s].c})"></i>${STEPS[s].name}</h2><ol>${g[s].map(([id,d])=>{const m=M[id];const sd=m.sides?(Array.isArray(m.sides)?m.sides.join("／")+"各半":"左右各半"):"";return`<li><div class="thumb" style="--sc:var(${STEPS[s].c})">${figSVG(id)}</div><div class="body"><span class="n">${m.n}</span>${sd?`<small>${sd}</small>`:""}<a href="${vidURL(id)}" target="_blank" rel="noopener">▶ 示範影片</a></div><span class="d">${d} 秒</span></li>`}).join("")}</ol></section>`).join("");
+  renderLog();
+}
+function renderLog(){
+  const days=store.get("log",[]);const now=new Date();const mon=new Date(now);mon.setHours(0,0,0,0);mon.setDate(mon.getDate()-((mon.getDay()+6)%7));
+  const wk=days.filter(t=>t>=mon.getTime()).length;
+  const txt=days.length?`本週已完成 <b>${wk}</b> 次・累計 <b>${days.length}</b> 次（記錄存於此瀏覽器）`:"";
+  $("log").innerHTML=txt;$("log2").innerHTML=txt;
+}
+$("v-short").onclick=()=>{ver="short";store.set("ver",ver);renderHome()};
+$("v-full").onclick=()=>{ver="full";store.set("ver",ver);renderHome()};
+$("o-rest").onchange=renderHome;
+
+/* audio + voice */
+let ac=null;
+function beep(f=880,d=.12,when=0){if(!$("o-sound").checked||!ac)return;try{const o=ac.createOscillator(),g=ac.createGain();o.frequency.value=f;o.connect(g);g.connect(ac.destination);const t=ac.currentTime+when;g.gain.setValueAtTime(.0001,t);g.gain.exponentialRampToValueAtTime(.25,t+.01);g.gain.exponentialRampToValueAtTime(.0001,t+d);o.start(t);o.stop(t+d+.02)}catch(e){}}
+function say(t){if(!$("o-voice").checked)return;try{const s=window.speechSynthesis;if(!s)return;s.cancel();const u=new SpeechSynthesisUtterance(t);u.lang="zh-TW";u.rate=1.05;s.speak(u)}catch(e){}}
+
+/* sequence */
+let seq=[],idx=0,end=0,left=0,paused=false,tick=null,sideCued=false,lastSec=-1,wake=null;
+const C=2*Math.PI*54;$("arc").style.strokeDasharray=C;
+function build(){
+  const r=ROUTINES[ver];seq=[{t:"prep",d:5,next:r[0][0]}];
+  r.forEach(([id,d],i)=>{seq.push({t:"work",id,d,i,n:r.length});if(i<r.length-1)seq.push({t:"rest",d:restSec(),next:r[i+1][0]})});
+}
+function phaseColor(p){const id=p.t==="work"?p.id:p.next;return p.t==="work"?`var(${STEPS[M[id].s].c})`:"var(--rest)"}
+function enter(i,announce=true){
+  idx=i;const p=seq[idx];left=p.d;end=performance.now()+left*1000;sideCued=false;lastSec=-1;
+  $("player").style.setProperty("--ph",phaseColor(p));
+  if(p.t==="work"){
+    const m=M[p.id];$("chip").textContent=STEPS[m.s].name;$("count").textContent=`動作 ${p.i+1} / ${p.n}`;
+    $("mvname").textContent=m.n;showFig(p.id);$("cues").innerHTML=m.cue.map(c=>`<li>${c}</li>`).join("");
+    $("side").textContent=m.sides?(Array.isArray(m.sides)?m.sides[0]:"右側"):"";
+    const nx=seq[idx+2];$("next").innerHTML=nx?`下一個：<b>${M[nx.id].n}</b>`:"最後一個動作";
+    if(announce){beep(1040,.25);say(m.n+(m.sides?(Array.isArray(m.sides)?"，先"+m.sides[0]:"，先做右側"):"")+"，"+p.d+"秒")}
+  }else{
+    const m=M[p.next];$("chip").textContent=p.t==="prep"?"準備":"休息";
+    const ni=seq.findIndex((x,j)=>j>idx&&x.t==="work");$("count").textContent=`動作 ${seq[ni].i+1} / ${seq[ni].n}`;
+    $("mvname").textContent=(p.t==="prep"?"準備開始：":"接著：")+m.n;showFig(p.next);$("cues").innerHTML=m.cue.map(c=>`<li>${c}</li>`).join("");
+    $("side").textContent=p.t==="prep"?"就位":"休息";$("next").innerHTML="";
+    if(announce)say((p.t==="prep"?"準備，第一個動作，":"休息，下一個，")+m.n);
+  }
+  draw();
+}
+function draw(){
+  const p=seq[idx];$("time").textContent=Math.ceil(left);
+  $("arc").style.strokeDashoffset=C*(1-left/p.d);
+  const tot=seq.reduce((a,x)=>a+x.d,0),done=seq.slice(0,idx).reduce((a,x)=>a+x.d,0)+(p.d-left);
+  $("prog").style.width=(done/tot*100)+"%";$("elapsed").textContent="已進行 "+fmt(done);$("remain").textContent="剩餘 "+fmt(tot-done);
+}
+function loop(){
+  if(paused)return;left=(end-performance.now())/1000;const p=seq[idx];
+  if(p.t==="work"){const m=M[p.id];if(m.sides&&!sideCued&&left<=p.d/2){sideCued=true;const s2=Array.isArray(m.sides)?m.sides[1]:"左側";$("side").textContent=s2;beep(660,.12);beep(660,.12,.18);say("換邊，"+s2)}}
+  const s=Math.ceil(left);if(s!==lastSec){lastSec=s;if(s<=3&&s>=1)beep(p.t==="work"?700:600,.08)}
+  if(left<=0){if(idx<seq.length-1)enter(idx+1);else finish();return}
+  draw();
+}
+async function start(){
+  try{ac=ac||new (window.AudioContext||window.webkitAudioContext)();if(ac.state==="suspended")await ac.resume()}catch(e){}
+  try{if(navigator.wakeLock)wake=await navigator.wakeLock.request("screen")}catch(e){}
+  build();paused=false;$("pause").textContent="暫停";$("home").hidden=true;$("done").hidden=true;$("player").hidden=false;window.scrollTo(0,0);
+  enter(0);clearInterval(tick);tick=setInterval(loop,100);
+}
+function stop(){clearInterval(tick);try{speechSynthesis.cancel()}catch(e){}try{wake&&wake.release()}catch(e){}wake=null}
+function finish(){
+  stop();beep(880,.15);beep(1175,.3,.2);say("完成，做得好");
+  const log=store.get("log",[]);log.push(Date.now());store.set("log",log.slice(-200));
+  $("donetxt").textContent=(ver==="short"?"平日短版":"週末完整版")+"已完成，共 "+ROUTINES[ver].length+" 個動作。";
+  renderLog();$("player").hidden=true;$("done").hidden=false;
+}
+function showFig(id){$("figbox").innerHTML=figSVG(id);$("vid").href=vidURL(id)}
+$("vid").addEventListener("click",()=>{if(!paused){paused=true;$("pause").textContent="繼續";try{speechSynthesis.cancel()}catch(e){}}});
+$("start").onclick=start;
+$("pause").onclick=()=>{if(paused){paused=false;end=performance.now()+left*1000;$("pause").textContent="暫停"}else{paused=true;$("pause").textContent="繼續";try{speechSynthesis.cancel()}catch(e){}}};
+function jump(dir){
+  // jump to next/previous work item
+  let j=idx+dir;while(j>=0&&j<seq.length&&seq[j].t!=="work")j+=dir;
+  if(j>=seq.length){finish();return}if(j<0)j=0;
+  paused=false;$("pause").textContent="暫停";enter(j);
+}
+$("skip").onclick=()=>jump(1);
+$("prev").onclick=()=>{const p=seq[idx];if(p.t==="work"&&p.d-left>3){enter(idx)}else jump(-1)};
+$("quit").onclick=()=>{stop();$("player").hidden=true;$("home").hidden=false;renderHome()};
+$("again").onclick=()=>{$("done").hidden=true;$("home").hidden=false;renderHome()};
+document.addEventListener("visibilitychange",async()=>{if(document.visibilityState==="visible"&&!$("player").hidden&&!wake){try{if(navigator.wakeLock)wake=await navigator.wakeLock.request("screen")}catch(e){}}});
+renderHome();
+</script>
+</body>
+</html>
